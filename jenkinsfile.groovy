@@ -12,7 +12,7 @@ pipeline {
                 docker container stop $(docker container ls -aq)
                 
                 docker pull postgres:latest
-                docker run --rm --name postgresdb -e POSTGRES_PASSWORD=chaklee -d postgres || true
+                hn=$(docker run --rm --name postgresdb -e POSTGRES_PASSWORD=chaklee -d postgres || true)
                 
                 
                 
@@ -23,7 +23,7 @@ pipeline {
 
                 docker pull docker.io/anchore/anchore-engine:latest
                 docker images
-                docker run --rm --name ae -e ANCHORE_DB_HOST=172.17.0.1 -e ANCHORE_DB_PASSWORD=chaklee anchore/anchore-engine:latest 
+                docker run --rm --name ae -e ANCHORE_DB_HOST=$hn -e ANCHORE_DB_PASSWORD=chaklee anchore/anchore-engine:latest 
                 docker ps -a
                 ls -al
                 docker cp ae:/docker-compose.yaml ~/aevolume/docker-compose.yaml || true
