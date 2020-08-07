@@ -11,7 +11,7 @@ pipeline {
                 
                 docker container stop $(docker container ls -aq)
                 
-                docker pull postgres:latest
+                docker pull postgres:9.6.18
                 hn=$(docker run --rm --name postgresdb -e POSTGRES_PASSWORD=chaklee -d postgres || true)
                 
                 
