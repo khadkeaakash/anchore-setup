@@ -9,6 +9,8 @@ pipeline {
                 echo 'Installing Anchore Engine'
                 sh '''
                 
+                docker container stop $(docker container ls -aq)
+                
                 docker pull postgres:latest
                 docker run --rm --name postgresdb -e POSTGRES_PASSWORD=chaklee -d postgres || true
                 
