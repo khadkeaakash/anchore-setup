@@ -8,6 +8,7 @@ pipeline {
             steps {
                 echo 'Installing Anchore Engine'
                 sh '''
+                docker volume create anchore-db-volume || true
                 
                 docker container stop $(docker container ls -aq)
                 
