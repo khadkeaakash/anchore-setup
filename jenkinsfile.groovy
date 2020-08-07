@@ -23,7 +23,7 @@ pipeline {
 
                 docker pull docker.io/anchore/anchore-engine:latest
                 docker images
-                docker run --rm --name ae -e ANCHORE_DB_HOST=localhost -e ANCHORE_LOG_LEVEL=DEBUG -e ANCHORE_DB_PASSWORD=chaklee anchore/anchore-engine:latest 
+                docker run --rm --name ae -e ANCHORE_DB_HOST=postgresdb -e ANCHORE_LOG_LEVEL=DEBUG -e ANCHORE_DB_PASSWORD=chaklee anchore/anchore-engine:latest 
                 docker ps -a
                 ls -al
                 docker cp ae:/docker-compose.yaml ~/aevolume/docker-compose.yaml || true
