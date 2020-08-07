@@ -9,10 +9,12 @@ pipeline {
                 echo 'Installing Anchore Engine'
                 sh '''
                 
+                rm -rf aevolume || true
                 mkdir ~/aevolume || true
                 cd ~/aevolume
 
                 docker pull docker.io/anchore/anchore-engine:latest
+                docker images
                 docker create --name ae docker.io/anchore/anchore-engine:latest || true
                 ls -al
                 docker cp ae/docker-compose.yaml ~/aevolume/docker-compose.yaml || true
