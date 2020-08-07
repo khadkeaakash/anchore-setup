@@ -9,13 +9,19 @@ pipeline {
                 echo 'Installing Anchore Engine'
                 sh '''
                 
+                docker pull postgres:latest
+                docker run --rm --name postgresdb -e POSTGRES_PASSWORD=chaklee -d postgres || true
+                
+                
+                
+                
                 rm -rf aevolume || true
                 mkdir ~/aevolume || true
                 cd ~/aevolume
 
                 docker pull docker.io/anchore/anchore-engine:latest
                 docker images
-                docker create --name ae docker.io/anchore/anchore-engine:latest || true
+                docker run --rm --name ae -e ANCHORE_DB_HOST=172.17.0.1 -e ANCHORE_DB_PASSWORD=chaklee anchore/anchore-engine:latest 
                 docker ps -a
                 ls -al
                 docker cp ae:/docker-compose.yaml ~/aevolume/docker-compose.yaml || true
