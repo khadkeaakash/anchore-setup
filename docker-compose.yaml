@@ -1,0 +1,258 @@
+# All-in-one docker-compose deployment of a full anchore-enterprise service system
+---
+version: '2.1'
+volumes:
+  anchore-db-volume:
+    # Set this to 'true' to use an external volume. In which case, it must be created manually with "docker volume create anchore-db-volume"
+    external: false
+  anchore-scratch: {}
+  feeds-workspace-volume:
+    # Set this to 'true' to use an external volume. In which case, it must be created manually with "docker volume create feeds-workspace-volume"
+    external: false
+  enterprise-feeds-db-volume:
+    # Set this to 'true' to use an external volume. In which case, it must be created manually with "docker volume create enterprise-feeds-db-volume"
+    external: false
+
+services:
+  # The primary API endpoint service
+  engine-api:
+    image: docker.io/anchore/anchore-engine:v0.5.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    ports:
+    - "8228:8228"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-api
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_AUTHZ_HANDLER=external
+    - ANCHORE_EXTERNAL_AUTHZ_ENDPOINT=http://enterprise-rbac-authorizer:8228
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    command: ["anchore-manager", "service", "start",  "apiext"]
+  # Catalog is the primary persistence and state manager of the system
+  engine-catalog:
+    image: docker.io/anchore/anchore-engine:v0.5.0
+    depends_on:
+    - anchore-db
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    expose:
+    - 8228
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-catalog
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    command: ["anchore-manager", "service", "start",  "catalog"]
+  engine-simpleq:
+    image: docker.io/anchore/anchore-engine:v0.5.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    expose:
+    - 8228
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-simpleq
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    command: ["anchore-manager", "service", "start",  "simplequeue"]
+  engine-policy-engine:
+    image: docker.io/anchore/anchore-engine:v0.5.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    expose:
+    - 8228
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-policy-engine
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment the ANCHORE_FEEDS_* environment variables (and uncomment the feeds db and service sections at the end of this file) to use the on-prem feed service
+    #- ANCHORE_FEEDS_URL=http://enterprise-feeds:8228/v1/feeds
+    #- ANCHORE_FEEDS_CLIENT_URL=null
+    #- ANCHORE_FEEDS_TOKEN_URL=null
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    command: ["anchore-manager", "service", "start",  "policy_engine"]
+  engine-analyzer:
+    image: docker.io/anchore/anchore-engine:v0.5.0
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    #volumes:
+    #- ./config-engine.yaml:/config/config.yaml:z
+    expose:
+    - 8228
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=engine-analyzer
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    volumes:
+    - anchore-scratch:/analysis_scratch
+    - ./analyzer_config.yaml:/anchore_service/analyzer_config.yaml:z
+    command: ["anchore-manager", "service", "start",  "analyzer"]
+  anchore-db:
+    image: "postgres:9"
+    volumes:
+    - anchore-db-volume:/var/lib/postgresql/data
+    environment:
+    - POSTGRES_PASSWORD=mysecretpassword
+    expose:
+    - 5432
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+  enterprise-rbac-authorizer:
+    image: docker.io/anchore/enterprise:v0.5.0
+    volumes:
+    - ./license.yaml:/license.yaml:ro
+    #- ./config-enterprise.yaml:/config/config.yaml:z
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    expose:
+    - 8089
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=enterprise-rbac-authorizer
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    command: ["anchore-enterprise-manager", "service", "start",  "rbac_authorizer"]
+  enterprise-rbac-manager:
+    image: docker.io/anchore/enterprise:v0.5.0
+    volumes:
+    - ./license.yaml:/license.yaml:ro
+    #- ./config-enterprise.yaml:/config/config.yaml:z
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    ports:
+    - "8229:8228"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=enterprise-rbac-manager
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_AUTHZ_HANDLER=external
+    - ANCHORE_EXTERNAL_AUTHZ_ENDPOINT=http://enterprise-rbac-authorizer:8228
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    command: ["anchore-enterprise-manager", "service", "start",  "rbac_manager"]
+  enterprise-reports:
+    image: docker.io/anchore/enterprise:v0.5.0
+    volumes:
+    - ./license.yaml:/license.yaml:ro
+    depends_on:
+    - anchore-db
+    - engine-catalog
+    ports:
+    - "8558:8228"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENDPOINT_HOSTNAME=enterprise-reports
+    - ANCHORE_DB_HOST=anchore-db
+    - ANCHORE_DB_PASSWORD=mysecretpassword
+    - ANCHORE_ENABLE_METRICS=false
+    - ANCHORE_AUTHZ_HANDLER=external
+    - ANCHORE_EXTERNAL_AUTHZ_ENDPOINT=http://enterprise-rbac-authorizer:8228
+    - ANCHORE_LOG_LEVEL=INFO
+    # Uncomment both ANCHORE_OAUTH_ENABLED and ANCHORE_AUTH_SECRET to enable SSO feature of anchore-enterprise
+    - ANCHORE_OAUTH_ENABLED=true
+    - ANCHORE_AUTH_SECRET=supersharedsecret
+    command: ["anchore-enterprise-manager", "service", "start",  "reports"]
+  enterprise-ui-redis:
+    image: "docker.io/library/redis:4"
+    expose:
+    - 6379
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+  enterprise-ui:
+    image: docker.io/anchore/enterprise-ui:v0.5.0
+    volumes:
+    - ./license.yaml:/license.yaml:ro
+    #- ./config-ui.yaml:/config/config-ui.yaml:z
+    depends_on:
+    - engine-api
+    - enterprise-ui-redis
+    - anchore-db
+    ports:
+    - "3000:3000"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: 100m
+    environment:
+    - ANCHORE_ENGINE_URI=http://engine-api:8228/v1
+    - ANCHORE_RBAC_URI=http://enterprise-rbac-manager:8228/v1
+    - ANCHORE_REDIS_URI=redis://enterprise-ui-redis:6379
+    - ANCHORE_APPDB_URI=postgres://postgres:chaklee@postgresdb:5432/postgres
+    - ANCHORE_REPORTS_URI=http://enterprise-reports:8228/v1
+    - ANCHORE_POLICY_HUB_URI=https://hub.anchore.io
